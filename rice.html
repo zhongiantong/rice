@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飯糰俠 - 高階商業儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --brand-primary: #f97316; /* Orange 500 */
+            --brand-dark: #0f172a;    /* Slate 900 */
+            --bg-body: #f1f5f9;       /* Slate 100 */
+        }
+        body {
+            font-family: 'Noto Sans HK', sans-serif;
+            background-color: var(--bg-body);
+            background-image: radial-gradient(circle at top right, #e2e8f0 0%, transparent 40%), 
+                              radial-gradient(circle at bottom left, #ffedd5 0%, transparent 30%);
+            background-attachment: fixed;
+        }
+        
+        /* 深度與玻璃質感 (Depth & Glassmorphism) */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 1.25rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.03);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 動畫進度條 */
+        .bar-fill {
+            width: 0%;
+            transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .bar-fill-up {
+            height: 0%;
+            transition: height 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        /* SVG 繪製動畫 */
+        @keyframes stroke-dash {
+            0% { stroke-dasharray: 0, 100; }
+        }
+        .animate-dash {
+            animation: stroke-dash 1.8s ease-out forwards;
+        }
+        
+        @keyframes draw-line {
+            0% { stroke-dasharray: 300; stroke-dashoffset: 300; }
+            100% { stroke-dasharray: 300; stroke-dashoffset: 0; }
+        }
+        .animate-draw-line {
+            animation: draw-line 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fade-in-up 1s ease-out forwards;
+            animation-delay: 1s;
+            opacity: 0;
+        }
+
+        /* 元素動態特效 */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+        .svg-pulse {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow { animation: spin-slow 15s linear infinite; }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+
+        /* 隱藏捲軸但可滾動 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- 頂部導航與標題 -->
+    <header class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="relative bg-gradient-to-br from-orange-400 to-orange-600 text-white p-2.5 rounded-xl shadow-lg shadow-orange-500/30">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                        <div class="absolute inset-0 bg-white rounded-xl svg-pulse"></div>
+                    </div>
+                    <h1 class="text-2xl font-black text-slate-800 tracking-tight">飯糰俠 <span class="font-normal text-slate-300 mx-1">|</span> <span class="text-lg font-medium text-slate-600">管理層儀表板</span></h1>
+                </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <div class="flex flex-col text-right">
+                        <span class="text-xs text-slate-400 font-medium uppercase tracking-wider">資料週期</span>
+                        <span class="text-sm font-bold text-slate-700">2026 Q1 (1月-3月)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 頁籤導航 (Tabs) -->
+            <nav class="flex space-x-8 mt-2 overflow-x-auto no-scrollbar" aria-label="Tabs">
+                <button onclick="switchTab('tab-overview')" id="btn-tab-overview" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm transition-colors border-orange-500 text-orange-600">
+                    📊 銷售總覽與實績
+                </button>
+                <button onclick="switchTab('tab-customer')" id="btn-tab-customer" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm transition-colors border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300">
+                    👥 顧客與營運洞察
+                </button>
+                <button onclick="switchTab('tab-strategy')" id="btn-tab-strategy" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-bold text-sm transition-colors border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300">
+                    🎯 策略與行動計畫
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        
+        <!-- ==================== 頁籤 1: 銷售總覽 ==================== -->
+        <section id="tab-overview" class="tab-content space-y-6 block">
+            
+            <!-- KPI 卡片 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 總銷售額 -->
+                <div class="glass-card p-6 border-t-4 border-orange-500 relative overflow-hidden group">
+                    <div class="absolute -right-6 -top-2 text-orange-500 opacity-10 z-0 pointer-events-none transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6">
+                        <svg class="h-40 w-40" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                    </div>
+                    <div class="relative z-10">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">總銷售額 (HKD)</p>
+                        <h2 class="text-4xl font-black text-slate-800">$1,245,600</h2>
+                        <div class="mt-4 flex items-center text-sm">
+                            <span class="text-emerald-600 font-bold bg-emerald-100/50 px-2 py-0.5 rounded flex items-center shadow-sm">
+                                <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                12.5%
+                            </span>
+                            <span class="text-slate-400 ml-2 font-medium">達標率 105%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 總訂單數 -->
+                <div class="glass-card p-6 border-t-4 border-blue-500 relative overflow-hidden group">
+                    <div class="absolute -right-4 -bottom-4 text-blue-500 opacity-10 z-0 pointer-events-none transition-transform duration-500 group-hover:scale-110">
+                        <svg class="h-32 w-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                    </div>
+                    <div class="relative z-10">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">總訂單數</p>
+                        <h2 class="text-4xl font-black text-slate-800">34,600</h2>
+                        <div class="mt-4 flex items-center text-sm">
+                            <span class="text-emerald-600 font-bold bg-emerald-100/50 px-2 py-0.5 rounded flex items-center shadow-sm">
+                                <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                8.2%
+                            </span>
+                            <span class="text-slate-400 ml-2 font-medium">較上季成長</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 客單價 -->
+                <div class="glass-card p-6 border-t-4 border-indigo-500 relative overflow-hidden group">
+                    <div class="absolute -right-6 top-4 text-indigo-500 opacity-10 z-0 pointer-events-none transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12">
+                        <svg class="h-32 w-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                    </div>
+                    <div class="relative z-10">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">全線平均客單價 (AOV)</p>
+                        <h2 class="text-4xl font-black text-slate-800">$33.85</h2>
+                        <div class="mt-4 flex items-center text-sm">
+                            <span class="text-emerald-600 font-bold bg-emerald-100/50 px-2 py-0.5 rounded flex items-center shadow-sm">
+                                <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                4.0%
+                            </span>
+                            <span class="text-slate-400 ml-2 font-medium">套餐推廣奏效</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下方區域：圖表與表格並排 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+                
+                <!-- 左側：分店表現對比表 (佔 2 欄) -->
+                <div class="glass-card overflow-hidden lg:col-span-2">
+                    <div class="px-6 py-5 border-b border-slate-100/50 bg-white/50 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800">分店實績對比與客單價分析</h3>
+                            <p class="text-sm text-slate-500 mt-1">沙田店展現極高客單價值，值得關注</p>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50/50 text-slate-500 text-xs uppercase tracking-widest border-b border-slate-200/60">
+                                    <th class="px-6 py-4 font-bold">分店</th>
+                                    <th class="px-6 py-4 font-bold w-1/3">營業額佔比</th>
+                                    <th class="px-6 py-4 font-bold text-right">銷售總額</th>
+                                    <th class="px-6 py-4 font-bold text-right bg-orange-50/30">客單價 (AOV)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-slate-700 divide-y divide-slate-100/60 font-medium">
+                                <!-- 銅鑼灣 -->
+                                <tr class="hover:bg-white/60 transition">
+                                    <td class="px-6 py-4">港島 - <span class="font-bold text-slate-900">銅鑼灣店</span></td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <div class="w-full bg-slate-200 rounded-full h-2">
+                                                <div class="bg-blue-500 h-2 rounded-full bar-fill" data-width="25%"></div>
+                                            </div>
+                                            <span class="ml-3 text-xs text-slate-500 w-8">25%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-800">$320,000</td>
+                                    <td class="px-6 py-4 text-right bg-orange-50/30 font-bold text-slate-700">$33.81</td>
+                                </tr>
+                                <!-- 旺角 -->
+                                <tr class="hover:bg-white/60 transition">
+                                    <td class="px-6 py-4">九龍 - <span class="font-bold text-slate-900">旺角店</span></td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <div class="w-full bg-slate-200 rounded-full h-2">
+                                                <div class="bg-blue-400 h-2 rounded-full bar-fill" data-width="22%"></div>
+                                            </div>
+                                            <span class="ml-3 text-xs text-slate-500 w-8">22%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-800">$280,000</td>
+                                    <td class="px-6 py-4 text-right bg-orange-50/30 font-bold text-slate-700">$33.80</td>
+                                </tr>
+                                <!-- 沙田 (Highlight) -->
+                                <tr class="bg-orange-50/40 hover:bg-orange-50/80 transition border-l-4 border-orange-500 relative">
+                                    <td class="px-6 py-4">新界 - <span class="font-bold text-slate-900">沙田店</span></td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <div class="w-full bg-slate-200 rounded-full h-2">
+                                                <div class="bg-orange-500 h-2 rounded-full bar-fill shadow-sm" data-width="17%"></div>
+                                            </div>
+                                            <span class="ml-3 text-xs text-slate-500 w-8">17%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-800">$210,000</td>
+                                    <td class="px-6 py-4 text-right bg-orange-100/50">
+                                        <span class="font-black text-orange-600 text-lg">$33.91</span>
+                                        <span class="flex justify-end text-[10px] text-orange-500 mt-0.5">🏆 榜首</span>
+                                    </td>
+                                </tr>
+                                <!-- 觀塘 -->
+                                <tr class="hover:bg-white/60 transition">
+                                    <td class="px-6 py-4">九龍 - <span class="font-bold text-slate-900">觀塘店</span></td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center">
+                                            <div class="w-full bg-slate-200 rounded-full h-2">
+                                                <div class="bg-slate-400 h-2 rounded-full bar-fill" data-width="15%"></div>
+                                            </div>
+                                            <span class="ml-3 text-xs text-slate-500 w-8">15%</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right font-bold text-slate-800">$185,600</td>
+                                    <td class="px-6 py-4 text-right bg-orange-50/30 font-bold text-slate-700">$33.50</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 右側：SVG 動畫圓環圖 (外賣 vs 堂食) -->
+                <div class="glass-card p-6 flex flex-col items-center justify-center relative overflow-hidden">
+                    <div class="w-full flex justify-between items-start mb-4">
+                        <h3 class="text-lg font-bold text-slate-800">銷售渠道分佈</h3>
+                        <span class="bg-orange-100 text-orange-600 px-2 py-1 rounded text-xs font-bold">Q1 數據</span>
+                    </div>
+                    
+                    <div class="relative w-48 h-48 mt-2 mb-6">
+                        <!-- SVG 環形圖 -->
+                        <svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90 drop-shadow-md">
+                            <!-- 背景底環 -->
+                            <path class="text-slate-100" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <!-- 外賣數據環 (72%) -->
+                            <path class="text-orange-500 animate-dash" stroke-dasharray="72, 100" stroke-width="3" stroke="currentColor" fill="none" stroke-linecap="round" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        
+                        <!-- 中心文字 -->
+                        <div class="absolute inset-0 flex flex-col items-center justify-center animate-fade-in-up">
+                            <span class="text-3xl font-black text-slate-800">72%</span>
+                            <span class="text-xs font-bold text-slate-500 tracking-widest mt-1">外賣佔比</span>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full flex justify-around text-sm border-t border-slate-100 pt-4">
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 rounded-full bg-orange-500 mr-2 shadow-sm"></span>
+                            <span class="text-slate-600 font-medium">外賣 (72%)</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 rounded-full bg-slate-200 mr-2"></span>
+                            <span class="text-slate-600 font-medium">堂食 (28%)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== 頁籤 2: 顧客與營運 ==================== -->
+        <section id="tab-customer" class="tab-content hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- 滿意度對比 (圖表化 + 趨勢線) -->
+                <div class="glass-card p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-6 flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            營運壓力與顧客滿意度
+                        </h3>
+                        
+                        <!-- 取消了 h-40 的高度限制，讓內部元素自然撐開 -->
+                        <div class="flex justify-around items-end pt-4 pb-6 border-b border-slate-100 relative">
+                            <!-- 平日 -->
+                            <div class="flex flex-col items-center w-1/2 z-10">
+                                <span class="text-4xl font-black text-slate-400 mb-2">3.75</span>
+                                <div class="w-16 bg-slate-200 rounded-t-lg relative flex justify-center items-end" style="height: 90px;">
+                                    <div class="w-16 bg-slate-400 rounded-t-lg absolute bottom-0 bar-fill-up" data-height="75%"></div>
+                                </div>
+                                <span class="mt-3 font-bold text-sm text-slate-600">平日 (Mon-Fri)</span>
+                                <span class="text-xs text-red-500 mt-1 bg-red-50 px-2 py-0.5 rounded-full">🔻 壓力大</span>
+                            </div>
+                            <!-- 週末 -->
+                            <div class="flex flex-col items-center w-1/2 border-l border-slate-100 z-10">
+                                <span class="text-4xl font-black text-emerald-500 mb-2">4.15</span>
+                                <div class="w-16 bg-emerald-50 rounded-t-lg relative flex justify-center items-end" style="height: 90px;">
+                                    <div class="w-16 bg-gradient-to-t from-emerald-400 to-emerald-500 rounded-t-lg absolute bottom-0 bar-fill-up shadow-md shadow-emerald-200" data-height="100%"></div>
+                                </div>
+                                <span class="mt-3 font-bold text-sm text-slate-800">週末 (Sat-Sun)</span>
+                                <span class="text-xs text-emerald-600 mt-1 bg-emerald-50 px-2 py-0.5 rounded-full">⭐ 體驗佳</span>
+                            </div>
+                            
+                            <!-- 背景裝飾 SVG 趨勢線 -->
+                            <div class="absolute bottom-16 left-0 w-full h-24 opacity-30 pointer-events-none z-0">
+                                <svg viewBox="0 0 100 40" class="w-full h-full preserve-3d">
+                                    <path d="M5,35 C20,35 30,15 50,25 C70,35 85,5 95,5" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" class="animate-draw-line" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <p class="text-sm text-slate-500 mt-4 leading-relaxed bg-slate-50 p-3 rounded-lg">
+                        <strong class="text-slate-700">數據解讀：</strong> 週末的平均滿意度 (4.15) 明顯高於平日 (3.75)。這證明了平日午餐高峰期的排隊與出餐壓力直接影響了顧客體驗，亟需改善動線。
+                    </p>
+                </div>
+
+                <!-- 支付方式與客群 (橫條圖) -->
+                <div class="glass-card p-6">
+                    <h3 class="text-lg font-bold text-slate-800 mb-6 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
+                        年輕客群支付偏好 (18-35歲)
+                    </h3>
+                    <div class="space-y-6">
+                        <!-- Alipay / PayMe -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-bold text-slate-700">電子錢包 (AlipayHK, PayMe)</span>
+                                <span class="font-black text-blue-600">65%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-3">
+                                <div class="bg-gradient-to-r from-blue-400 to-blue-600 h-3 rounded-full bar-fill shadow-sm shadow-blue-300" data-width="65%"></div>
+                            </div>
+                        </div>
+                        <!-- 八達通 -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-bold text-slate-700">八達通</span>
+                                <span class="font-black text-orange-500">25%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-3">
+                                <div class="bg-orange-400 h-3 rounded-full bar-fill" data-width="25%"></div>
+                            </div>
+                        </div>
+                        <!-- 信用卡/現金 -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="font-bold text-slate-700">實體卡 / 現金</span>
+                                <span class="font-black text-slate-500">10%</span>
+                            </div>
+                            <div class="w-full bg-slate-100 rounded-full h-3">
+                                <div class="bg-slate-300 h-3 rounded-full bar-fill" data-width="10%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 天氣影響 (圖文並茂 + CSS 浮動特效) -->
+                <div class="glass-card p-6 lg:col-span-2 bg-gradient-to-r from-slate-800 to-slate-700 text-white relative overflow-hidden group">
+                    <svg class="absolute right-0 top-0 opacity-10 w-64 h-64 -mt-10 -mr-10 animate-spin-slow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center relative z-10">
+                        <svg class="w-5 h-5 mr-2 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                        環境因素：天氣與產品組合的連動效應
+                    </h3>
+                    <div class="flex flex-col sm:flex-row items-center justify-between bg-white/10 rounded-xl p-5 border border-white/20 backdrop-blur-sm relative z-10 shadow-lg">
+                        <div class="flex-1">
+                            <p class="text-slate-200 text-sm leading-relaxed">
+                                數據顯示，當出現<strong class="text-yellow-300 mx-1">雨天或陰天</strong>時，外賣訂單比例顯著上升。更關鍵的是，附帶熱飲（如熱奶茶）及湯品（如味噌湯）的加購率較晴天<strong class="text-white text-lg ml-1 bg-white/20 px-2 py-0.5 rounded shadow-inner">激增 22%</strong>。
+                            </p>
+                        </div>
+                        <div class="sm:ml-6 mt-4 sm:mt-0 flex space-x-3">
+                            <div class="text-center bg-slate-800/80 p-4 rounded-xl border border-slate-500 shadow-xl relative overflow-hidden">
+                                <!-- 加入動態漂浮元素 -->
+                                <span class="block text-3xl mb-2 animate-float drop-shadow-lg">🍙<span class="text-xl mx-1 text-slate-400">+</span>☕</span>
+                                <span class="text-xs text-slate-300 tracking-wider">熱飲組合銷量</span>
+                                <span class="block text-emerald-400 font-bold mt-1 text-lg">↑ 22%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ==================== 頁籤 3: 策略行動 ==================== -->
+        <section id="tab-strategy" class="tab-content hidden space-y-6">
+            
+            <div class="flex items-center mb-2 pb-4 border-b border-slate-200">
+                <div class="bg-slate-800 text-white p-3 rounded-xl mr-4 shadow-md">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-black text-slate-800">數據驅動行動方案</h2>
+                    <p class="text-slate-500 text-sm mt-1">三大核心優化策略 (Action Plans)</p>
+                </div>
+            </div>
+
+            <!-- 策略 1: 支付與客群 -->
+            <div class="glass-card p-6 border-l-4 border-blue-500 flex flex-col md:flex-row gap-8 items-center hover:shadow-xl transition-all">
+                <!-- 左側：短數據 + 條列行動 -->
+                <div class="flex-1 space-y-4 w-full">
+                    <h3 class="text-xl font-bold text-slate-800 flex items-center">
+                        <span class="text-2xl mr-2">💳</span> 優化支付與年輕客群行銷
+                    </h3>
+                    
+                    <div class="flex gap-4">
+                        <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex-1">
+                            <p class="text-xs text-blue-600 font-bold tracking-widest uppercase mb-1">📊 核心洞察</p>
+                            <p class="text-3xl font-black text-slate-800">65% <span class="text-sm font-medium text-slate-600 block mt-1">18-35歲客群高度依賴電子錢包</span></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-3">🚀 具體行動 (Actions)</p>
+                        <ul class="space-y-3 text-sm text-slate-700 font-bold">
+                            <li class="flex items-start">
+                                <svg class="w-5 h-5 text-blue-500 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                推出「平日午餐滿 $50 減 $5」Alipay/PayMe 專屬補貼，加速結帳。
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-5 h-5 text-blue-500 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                雙軌會員制：年輕人推 APP 積分；46+ 長者保留實體印花卡。
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- 右側：視覺化圖表 -->
+                <div class="w-full md:w-1/3 bg-slate-800 rounded-2xl p-6 text-white relative overflow-hidden shadow-inner">
+                    <h4 class="text-xs font-bold text-slate-400 mb-4">年輕客群 (18-35歲) 支付分佈</h4>
+                    <div class="space-y-5 relative z-10">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1.5"><span class="text-slate-200">Alipay / PayMe</span><span class="font-bold text-blue-400">65%</span></div>
+                            <div class="w-full bg-slate-700 rounded-full h-3"><div class="bg-blue-500 h-3 rounded-full bar-fill" data-width="65%"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1.5"><span class="text-slate-200">八達通</span><span class="font-bold text-orange-400">25%</span></div>
+                            <div class="w-full bg-slate-700 rounded-full h-3"><div class="bg-orange-500 h-3 rounded-full bar-fill" data-width="25%"></div></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1.5"><span class="text-slate-200">現金 / 信用卡</span><span class="font-bold text-slate-400">10%</span></div>
+                            <div class="w-full bg-slate-700 rounded-full h-3"><div class="bg-slate-400 h-3 rounded-full bar-fill" data-width="10%"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 策略 2: 天氣與產品 -->
+            <div class="glass-card p-6 border-l-4 border-orange-500 flex flex-col md:flex-row gap-8 items-center hover:shadow-xl transition-all">
+                <!-- 左側：短數據 + 條列行動 -->
+                <div class="flex-1 space-y-4 w-full">
+                    <h3 class="text-xl font-bold text-slate-800 flex items-center">
+                        <span class="text-2xl mr-2">⛈️</span> 天氣與產品連動策略
+                    </h3>
+                    
+                    <div class="flex gap-4">
+                        <div class="bg-orange-50 p-4 rounded-xl border border-orange-100 flex-1">
+                            <p class="text-xs text-orange-600 font-bold tracking-widest uppercase mb-1">📊 核心洞察</p>
+                            <p class="text-3xl font-black text-slate-800">↑ 22% <span class="text-sm font-medium text-slate-600 block mt-1">雨天時「熱飲/湯品」與外賣需求激增</span></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-3">🚀 具體行動 (Actions)</p>
+                        <ul class="space-y-3 text-sm text-slate-700 font-bold">
+                            <li class="flex items-start">
+                                <svg class="w-5 h-5 text-orange-500 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                啟動動態菜單：雨天外賣平台自動置頂「飯糰+熱湯」並配運費半價。
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-5 h-5 text-orange-500 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                預測性備貨：將「明日天氣預報」納入店長每日盤點 SOP，提早準備包材。
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- 右側：視覺化圖表 -->
+                <div class="w-full md:w-1/3 bg-orange-50 rounded-2xl p-6 relative overflow-hidden shadow-inner border border-orange-100 text-center flex flex-col justify-center h-full">
+                    <h4 class="text-xs font-bold text-orange-800 mb-6">天氣對產品銷量影響</h4>
+                    <div class="flex justify-around items-end h-28 px-4">
+                        <div class="flex flex-col items-center w-12">
+                            <span class="text-2xl mb-2 drop-shadow-sm">☀️</span>
+                            <div class="w-full bg-blue-300 rounded-t-md bar-fill-up relative group" data-height="40%">
+                                <span class="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-bold text-blue-700">平穩</span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-center w-16">
+                            <span class="text-3xl mb-2 animate-float drop-shadow-sm">🌧️</span>
+                            <div class="w-full bg-gradient-to-t from-orange-500 to-orange-400 rounded-t-md bar-fill-up relative shadow-md" data-height="85%">
+                                <span class="absolute -top-7 left-1/2 transform -translate-x-1/2 text-sm font-black text-orange-600 bg-white px-1.5 py-0.5 rounded shadow-sm">暴增</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs font-bold text-slate-500 mt-4 border-t border-orange-200 pt-2">熱飲/湯品銷量對比</p>
+                </div>
+            </div>
+
+            <!-- 策略 3: 分店營運 -->
+            <div class="glass-card p-6 border-l-4 border-emerald-500 flex flex-col md:flex-row gap-8 items-center hover:shadow-xl transition-all">
+                <!-- 左側：短數據 + 條列行動 -->
+                <div class="flex-1 space-y-4 w-full">
+                    <h3 class="text-xl font-bold text-slate-800 flex items-center">
+                        <span class="text-2xl mr-2">🏪</span> 分店營運與滿意度提升
+                    </h3>
+                    
+                    <div class="flex gap-4">
+                        <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex-1">
+                            <p class="text-xs text-emerald-600 font-bold tracking-widest uppercase mb-1">📊 核心洞察</p>
+                            <p class="text-3xl font-black text-slate-800">3.75 <span class="text-sm font-medium text-slate-600 block mt-1">平日尖峰期評分較低，主因外賣降溫與等候</span></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <p class="text-xs text-slate-500 font-bold tracking-widest uppercase mb-3">🚀 具體行動 (Actions)</p>
+                        <ul class="space-y-3 text-sm text-slate-700 font-bold">
+                            <li class="flex items-start">
+                                <svg class="w-5 h-5 text-emerald-500 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                外賣品管專案：全面升級保溫包裝，確保熱湯與冷飲物理隔離。
+                            </li>
+                            <li class="flex items-start">
+                                <svg class="w-5 h-5 text-emerald-500 mr-2 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                差異化選品：高消費沙田店推「和牛飯糰」測單價；旺角店推「極速盲盒」降排隊時間。
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- 右側：視覺化圖表 -->
+                <div class="w-full md:w-1/3 bg-white rounded-2xl p-6 relative overflow-hidden shadow-sm border border-slate-200">
+                    <h4 class="text-xs font-bold text-slate-500 mb-4 text-center">顧客滿意度 (CSAT) 痛點</h4>
+                    <div class="relative h-24 flex items-center justify-center">
+                        <div class="absolute left-0 w-full flex justify-between px-2 text-xs text-slate-400 bottom-0 border-b border-slate-200 pb-1">
+                            <span>平日 (尖峰)</span>
+                            <span>週末 (離峰)</span>
+                        </div>
+                        <!-- 曲線圖 SVG -->
+                        <svg viewBox="0 0 100 50" class="w-full h-full overflow-visible pb-4">
+                            <!-- 平日低點 (3.75) 到 週末高點 (4.15) -->
+                            <path d="M 10,40 C 40,40 60,10 90,10" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="0" class="animate-draw-line" />
+                            <circle cx="10" cy="40" r="4" fill="#ef4444" />
+                            <circle cx="90" cy="10" r="4" fill="#10b981" />
+                            <text x="10" y="25" font-size="10" fill="#ef4444" font-weight="bold">3.75</text>
+                            <text x="90" y="-2" font-size="10" fill="#10b981" font-weight="bold">4.15</text>
+                        </svg>
+                    </div>
+                    <div class="mt-4 text-center">
+                        <span class="inline-block bg-red-50 text-red-600 text-xs px-2 py-1 rounded-md font-bold border border-red-100">⚠️ 尖峰急需優化</span>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- 腳本控制 -->
+    <script>
+        // 頁籤切換邏輯
+        function switchTab(tabId) {
+            // 隱藏所有內容
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.add('hidden');
+                el.classList.remove('block');
+            });
+            // 顯示目標內容
+            const target = document.getElementById(tabId);
+            target.classList.remove('hidden');
+            target.classList.add('block');
+            
+            // 重置所有按鈕樣式
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-orange-500', 'text-orange-600');
+                btn.classList.add('border-transparent', 'text-slate-500');
+            });
+            // 激活當前按鈕樣式
+            const activeBtn = document.getElementById('btn-' + tabId);
+            activeBtn.classList.remove('border-transparent', 'text-slate-500');
+            activeBtn.classList.add('border-orange-500', 'text-orange-600');
+
+            // 重新觸發動畫
+            triggerAnimations(target);
+        }
+
+        // 動畫觸發邏輯
+        function triggerAnimations(container) {
+            setTimeout(() => {
+                // 橫向進度條
+                container.querySelectorAll('.bar-fill').forEach(bar => {
+                    bar.style.width = bar.getAttribute('data-width');
+                });
+                // 縱向進度條
+                container.querySelectorAll('.bar-fill-up').forEach(bar => {
+                    bar.style.height = bar.getAttribute('data-height');
+                });
+                // SVG 繪製動畫
+                container.querySelectorAll('.animate-draw-line').forEach(line => {
+                    line.style.animation = 'none';
+                    line.offsetHeight; // 觸發重繪
+                    line.style.animation = null;
+                });
+            }, 100);
+        }
+
+        // 頁面載入時初始化動畫
+        window.addEventListener('DOMContentLoaded', () => {
+            triggerAnimations(document.getElementById('tab-overview'));
+        });
+    </script>
+</body>
+</html>
